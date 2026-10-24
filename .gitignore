@@ -1,0 +1,22 @@
+# 依赖与构建
+node_modules/
+dist/
+
+# 运行时数据（个人使用记录，禁止入库）
+data/
+
+# WorkBuddy 工作目录
+.workbuddy/
+
+# Python
+__pycache__/
+*.pyc
+
+# 日志与临时
+*.log
+
+# 系统与编辑器
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

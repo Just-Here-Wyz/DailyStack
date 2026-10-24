@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="日栈 DailyStack —— 把「今天做了什么 / 要做什么 / 收入 / 花销」收进一个页面的本地工作台。">
+<meta name="color-scheme" content="light">
+<title>日栈 DailyStack · 日常工作台</title>
+<link rel="stylesheet" href="css/style.css">
+<!-- ===================== PWA：可安装 + 离线 ===================== -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#6B5B45">
+<meta name="mobile-web-app-capable" content="yes">
+<!-- iOS Safari：添加到主屏后以独立窗口打开、用同一枚图标 -->
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="日栈">
+<!-- WorkBuddy 云端 SDK（Form B：CDN 全局）。用 async 加载：不阻塞页面解析，离线 / 加载失败时空云层静默降级，应用仍本地运行；cloud.js 会在脚本到位后自动重试接入 -->
+<script async src="https://cdn.jsdelivr.net/npm/@tencent-ai/workbuddy-cloud-sdk@dev/lib/index.global.js"></script>
+</head>
+<body>
+
+<!-- ===================== 顶部通栏 ===================== -->
+<header class="topbar">
+  <div class="topbar__inner">
+    <div class="brand">
+      <span class="brand__logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 7.5 12 3.5l8 4-8 4-8-4Z"></path>
+          <path d="M4 12.5 12 16.5l8-4"></path>
+          <path d="M4 16.5 12 20.5l8-4"></path>
+        </svg>
+      </span>
+      <span class="brand__text">
+        <span class="brand__name">日栈 DailyStack</span>
+        <span class="brand__sub">日常工作台</span>
+      </span>
+    </div>
+
+    <div class="topbar__meta">
+      <span class="topbar__date" id="topbar-date">—</span>
+      <span class="chip chip--info" id="auto-refresh-chip" title="跨过本地 00:00 时自动推进到今天">
+        <span class="chip__dot" aria-hidden="true"></span>
+        <span id="auto-refresh-text">每日 00:00 自动刷新</span>
+      </span>
+      <button type="button" class="btn btn--ghost btn--sm" id="btn-sync" title="登录后手机和电脑自动同步">登录同步</button>
+      <button type="button" class="btn btn--ghost btn--sm" id="btn-logout" title="退出登录" hidden>退出</button>
+      <button type="button" class="btn btn--ghost btn--icon" id="btn-backup" title="导出 / 导入本地数据备份" aria-label="数据备份">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 3v12"></path><path d="m7.5 10.5 4.5 4.5 4.5-4.5"></path><path d="M4 20h16"></path>
+        </svg>
+      </button>
+      <!-- PWA：浏览器允许安装时（满足可安装条件且未安装）才显示，点击触发原生安装弹窗 -->
+      <button type="button" class="btn btn--install btn--sm" id="pwa-install-btn" title="安装到桌面 / 主屏幕，离线也能打开" hidden>安装应用</button>
+      <span class="avatar" aria-hidden="true">栈</span>
+    </div>
+  </div>
+</header>
+
+<!-- ===================== 主布局 ===================== -->
+<main class="layout">
+
+  <!-- ---------- 左栏：主工作区 ---------- -->
+  <section class="col-main" aria-label="主工作区">
+
+    <!-- 四统计卡 -->
+    <section class="stats" aria-label="今日概览">
+      <article class="stat-card" data-testid="stat-done" data-stat="done">
+        <p class="stat-card__label">今日已做</p>
+        <p class="stat-card__value" data-field="value">—</p>
+        <p class="stat-card__sub" data-field="sub">加载中…</p>
+      </article>
+      <article class="stat-card" data-testid="stat-todo" data-stat="todoOpen">
+        <p class="stat-card__label">待办未完成</p>
+        <p class="stat-card__value" data-field="value">—</p>
+        <p class="stat-card__sub" data-field="sub">加载中…</p>
+      </article>
+      <article class="stat-card" data-testid="stat-income" data-stat="income">
+        <p class="stat-card__label">今日收入</p>
+        <p class="stat-card__value" data-field="value">—</p>
+        <p class="stat-card__sub" data-field="sub">加载中…</p>
+      </article>
+      <article class="stat-card" data-testid="stat-expense" data-stat="expense">
+        <p class="stat-card__label">今日支出</p>
+        <p class="stat-card__value" data-field="value">—</p>
+        <p class="stat-card__sub" data-field="sub">加载中…</p>
+      </article>
+    </section>
+
+    <!-- 两个列表 -->
+    <section class="panels" aria-label="清单">
+
+      <!-- 今天我做了什么 -->
+      <article class="card" id="card-records" data-testid="card-records">
+        <header class="card__head">
+          <h2 class="card__title">今天我做了什么</h2>
+          <button type="button" class="btn btn--primary btn--sm" data-open-form="record">＋ 新增记录</button>
+        </header>
+        <div class="card__body" data-list-body>
+          <p class="state state--loading">加载中…</p>
+        </div>
+      </article>
+
+      <!-- 要做什么 -->
+      <article class="card" id="card-todos" data-testid="card-todos">
+        <header class="card__head">
+          <h2 class="card__title">要做什么</h2>
+          <button type="button" class="btn btn--primary btn--sm" data-open-form="todo">＋ 新增待办</button>
+        </header>
+        <div class="card__body" data-list-body>
+          <p class="state state--loading">加载中…</p>
+        </div>
+      </article>
+
+    </section>
+
+    <!-- 扩展模块区（模块通过 registerModule 挂进来；外观与其他卡片一致，不再标成「预留」） -->
+    <section id="extension-zone" class="extension" aria-label="扩展模块">
+      <div class="extension__body" id="extension-mounted"></div>
+    </section>
+
+  </section>
+
+  <!-- ---------- 右栏：日历与详情 ---------- -->
+  <aside class="col-side" aria-label="日历与当日详情">
+
+    <!-- 日历区块 -->
+    <section class="card" id="card-calendar" data-testid="card-calendar">
+      <header class="card__head card__head--calendar">
+        <h2 class="card__title" id="calendar-title">—</h2>
+        <div class="calendar__nav">
+          <button type="button" class="btn btn--ghost btn--icon" id="calendar-prev" aria-label="上一月" title="上一月">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14.5 5-7 7 7 7"></path></svg>
+          </button>
+          <button type="button" class="btn btn--ghost btn--sm" id="calendar-today">今天</button>
+          <button type="button" class="btn btn--ghost btn--icon" id="calendar-next" aria-label="下一月" title="下一月">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 5 7 7-7 7"></path></svg>
+          </button>
+        </div>
+      </header>
+      <div class="card__body">
+        <div class="calendar__weekdays" id="calendar-weekdays" aria-hidden="true"></div>
+        <div class="calendar__grid" id="calendar-grid" role="grid" aria-label="月历"></div>
+      </div>
+    </section>
+
+    <!-- 当日详情 -->
+    <section class="card" id="card-detail" data-testid="card-detail">
+      <header class="card__head">
+        <h2 class="card__title" id="detail-title">当日详情</h2>
+        <span class="detail__balance" id="detail-balance">结余 ¥0.00</span>
+      </header>
+      <div class="card__body">
+        <div class="detail__money">
+          <div class="mini-card">
+            <span class="mini-card__label">收入</span>
+            <span class="mini-card__value" id="detail-income">¥0.00</span>
+          </div>
+          <div class="mini-card">
+            <span class="mini-card__label">支出</span>
+            <span class="mini-card__value" id="detail-expense">¥0.00</span>
+          </div>
+        </div>
+        <div class="detail__actions">
+          <button type="button" class="btn btn--ghost btn--sm" id="detail-add-finance">＋ 记一笔</button>
+          <span class="detail__actions-hint" id="detail-add-hint">记在 今天</span>
+        </div>
+        <div class="detail__list" id="detail-list">
+          <p class="state state--loading">加载中…</p>
+        </div>
+        <p class="detail__foot">点击日历任意日期，查看当天完整记录</p>
+      </div>
+    </section>
+
+  </aside>
+</main>
+
+<!-- ===================== 抽屉：新增 / 编辑 ===================== -->
+<div class="drawer" id="drawer" hidden>
+  <div class="drawer__scrim" data-drawer-close></div>
+  <div class="drawer__panel" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
+    <header class="drawer__head">
+      <h2 class="drawer__title" id="drawer-title">新增</h2>
+      <button type="button" class="btn btn--ghost btn--icon" data-drawer-close aria-label="关闭">✕</button>
+    </header>
+    <form class="drawer__form" id="drawer-form" novalidate>
+
+      <!-- 记录 -->
+      <div class="field" data-form-kind="record">
+        <label class="field__label" for="record-content">内容</label>
+        <input class="input" id="record-content" name="content" type="text" maxlength="200" placeholder="今天做了什么？" autocomplete="off">
+        <p class="field__error" data-error-for="content"></p>
+      </div>
+      <div class="field" data-form-kind="record">
+        <label class="field__label" for="record-date">归属日期</label>
+        <input class="input" id="record-date" name="date" type="date">
+        <p class="field__error" data-error-for="date"></p>
+      </div>
+      <!-- 「做了什么」默认就是已完成，开关保留在表单里但不展示给用户 -->
+      <div class="field field--row" data-form-kind="record" data-hidden-field="1" hidden>
+        <label class="switch">
+          <input type="checkbox" name="done" id="record-done" checked>
+          <span class="switch__track" aria-hidden="true"></span>
+          <span class="switch__text">标记为已完成</span>
+        </label>
+      </div>
+
+      <!-- 待办 -->
+      <div class="field" data-form-kind="todo">
+        <label class="field__label" for="todo-content">内容</label>
+        <input class="input" id="todo-content" name="content" type="text" maxlength="200" placeholder="要做什么？" autocomplete="off">
+        <p class="field__error" data-error-for="content"></p>
+      </div>
+      <div class="field" data-form-kind="todo">
+        <span class="field__label">优先级</span>
+        <div class="segmented" role="radiogroup" aria-label="优先级">
+          <label class="segmented__item"><input type="radio" name="priority" value="high"><span>高</span></label>
+          <label class="segmented__item"><input type="radio" name="priority" value="medium" checked><span>中</span></label>
+          <label class="segmented__item"><input type="radio" name="priority" value="low"><span>低</span></label>
+        </div>
+      </div>
+      <div class="field" data-form-kind="todo">
+        <label class="field__label" for="todo-date">计划日期</label>
+        <input class="input" id="todo-date" name="date" type="date">
+        <p class="field__error" data-error-for="date"></p>
+      </div>
+
+      <!-- 收支 -->
+      <div class="field" data-form-kind="finance">
+        <span class="field__label">类型</span>
+        <div class="segmented segmented--money" role="radiogroup" aria-label="收支类型">
+          <label class="segmented__item"><input type="radio" name="type" value="income"><span>收入</span></label>
+          <label class="segmented__item"><input type="radio" name="type" value="expense" checked><span>支出</span></label>
+        </div>
+      </div>
+      <div class="field" data-form-kind="finance">
+        <label class="field__label" for="finance-amount">金额（元）</label>
+        <input class="input input--money" id="finance-amount" name="amount" type="text" inputmode="decimal" placeholder="0.00" autocomplete="off">
+        <p class="field__error" data-error-for="amount"></p>
+      </div>
+      <div class="field" data-form-kind="finance">
+        <label class="field__label" for="finance-category">分类</label>
+        <input class="input" id="finance-category" name="category" type="text" list="category-options" maxlength="20" placeholder="餐饮 / 交通 / 兼职 / 其他" autocomplete="off">
+        <datalist id="category-options">
+          <option value="餐饮"></option>
+          <option value="交通"></option>
+          <option value="购物"></option>
+          <option value="居家"></option>
+          <option value="学习"></option>
+          <option value="兼职"></option>
+          <option value="工资"></option>
+          <option value="红包"></option>
+          <option value="医疗"></option>
+          <option value="娱乐"></option>
+          <option value="其他"></option>
+        </datalist>
+      </div>
+      <div class="field" data-form-kind="finance">
+        <label class="field__label" for="finance-note">备注</label>
+        <input class="input" id="finance-note" name="note" type="text" maxlength="100" placeholder="选填" autocomplete="off">
+      </div>
+      <div class="field" data-form-kind="finance">
+        <label class="field__label" for="finance-date">发生日期</label>
+        <input class="input" id="finance-date" name="date" type="date">
+        <p class="field__error" data-error-for="date"></p>
+      </div>
+
+      <footer class="drawer__foot">
+        <button type="button" class="btn btn--ghost" data-drawer-close>取消</button>
+        <button type="submit" class="btn btn--primary" id="drawer-submit">保存</button>
+      </footer>
+    </form>
+  </div>
+</div>
+
+<!-- ===================== 抽屉：数据备份 ===================== -->
+<div class="drawer" id="drawer-backup" hidden>
+  <div class="drawer__scrim" data-drawer-close></div>
+  <div class="drawer__panel" role="dialog" aria-modal="true" aria-labelledby="backup-title">
+    <header class="drawer__head">
+      <h2 class="drawer__title" id="backup-title">数据备份</h2>
+      <button type="button" class="btn btn--ghost btn--icon" data-drawer-close aria-label="关闭">✕</button>
+    </header>
+    <div class="drawer__form">
+      <p class="drawer__lead">数据全部存放在本机浏览器里。换电脑或清理浏览器数据前，先导出一份 JSON 备份。</p>
+
+      <div class="backup-block">
+        <h3 class="backup-block__title">导出</h3>
+        <p class="backup-block__desc" id="backup-count">统计中…</p>
+        <button type="button" class="btn btn--primary" id="btn-export">导出 JSON 备份</button>
+      </div>
+
+      <div class="backup-block">
+        <h3 class="backup-block__title">导入</h3>
+        <p class="backup-block__desc">可选：把导入的记录与收支挂到指定日期；留空则使用备份里的原日期。</p>
+        <div class="field">
+          <label class="field__label" for="import-date">覆盖日期（选填）</label>
+          <input class="input" id="import-date" type="date">
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="import-merge">
+          <span class="switch__track" aria-hidden="true"></span>
+          <span class="switch__text">合并到现有数据（不先清空）</span>
+        </label>
+        <div class="backup-actions">
+          <button type="button" class="btn btn--ghost" id="btn-import-pick">选择备份文件…</button>
+        </div>
+        <input type="file" id="import-file" accept="application/json,.json" hidden>
+        <p class="field__error" id="import-error"></p>
+      </div>
+
+      <div class="backup-block backup-block--danger">
+        <h3 class="backup-block__title">清空</h3>
+        <p class="backup-block__desc">删除本机全部记录、待办与收支，不可撤销。</p>
+        <button type="button" class="btn btn--danger" id="btn-clear-all">清空全部数据</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== 抽屉：登录 / 同步 ===================== -->
+<div class="drawer" id="drawer-login" hidden>
+  <div class="drawer__scrim" data-drawer-close></div>
+  <div class="drawer__panel" role="dialog" aria-modal="true" aria-labelledby="login-title">
+    <header class="drawer__head">
+      <h2 class="drawer__title" id="login-title">登录以同步</h2>
+      <button type="button" class="btn btn--ghost btn--icon" data-drawer-close aria-label="关闭">✕</button>
+    </header>
+    <div class="drawer__form login">
+      <p class="drawer__lead">登录后，你的记录会安全地保存在云端（仅你自己可见），手机和电脑自动同步。未登录时数据只存在本机。</p>
+
+      <!-- 手机号验证码 -->
+      <div class="login__group">
+        <h3 class="login__title">手机号验证码登录</h3>
+        <div class="field">
+          <label class="field__label" for="login-phone">手机号</label>
+          <input class="input" id="login-phone" type="tel" inputmode="numeric" maxlength="11" placeholder="11 位手机号" autocomplete="off">
+          <p class="field__error" id="login-phone-error"></p>
+        </div>
+        <div class="field">
+          <label class="field__label" for="login-code">验证码</label>
+          <div class="login__code-row">
+            <input class="input" id="login-code" type="text" inputmode="numeric" maxlength="6" placeholder="6 位验证码" autocomplete="off" disabled>
+            <button type="button" class="btn btn--ghost btn--sm" id="login-send-code">获取验证码</button>
+          </div>
+          <p class="field__error" id="login-code-error"></p>
+        </div>
+        <button type="button" class="btn btn--primary" id="login-phone-submit" disabled>登录 / 注册</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ===================== 全局提示 ===================== -->
+<div class="toast-host" id="toast-host" role="status" aria-live="polite"></div>
+
+<!-- 提示气泡（放在 body 末尾，供 hover 显示完整文本） -->
+<div class="tip" id="global-tip" hidden></div>
+
+<script src="js/util.js"></script>
+<script src="js/store.js"></script>
+<script src="js/toast.js"></script>
+<script src="js/stats.js"></script>
+<script src="js/lists.js"></script>
+<script src="js/calendar.js"></script>
+<script src="js/detail.js"></script>
+<script src="js/extension.js"></script>
+<script src="js/learnings.js"></script>
+<script src="js/backup.js"></script>
+<script src="js/cloud-config.js"></script>
+<script src="js/cloud.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

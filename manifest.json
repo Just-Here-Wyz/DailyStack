@@ -1,0 +1,17 @@
+{
+  "name": "日栈 DailyStack",
+  "short_name": "日栈",
+  "description": "把「今天做了什么 / 要做什么 / 收入 / 花销」收进一个页面的本地工作台。",
+  "lang": "zh-CN",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#F5F0E6",
+  "theme_color": "#6B5B45",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
